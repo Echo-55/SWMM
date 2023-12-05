@@ -1,4 +1,4 @@
-import typing
+from typing import TYPE_CHECKING, Optional
 import os
 from io import BytesIO
 from zipfile import ZipFile
@@ -8,11 +8,8 @@ from dataclasses import dataclass
 
 from src.Utils import SteamCMDNotInstalledException
 
-if typing.TYPE_CHECKING:
+if TYPE_CHECKING:
     from src.Utils import Config
-
-CONFIGFILE = "config.ini"
-MYCONFIGFILE = "myconfig.ini"
 
 @dataclass
 class Game:
@@ -24,17 +21,28 @@ class SteamCMD:
     """
     SteamCMD class
     """
-    def __init__(self, master_config: 'Config'):
+    def __init__(self, master_config: 'Config', game: Optional[Game]=None):
         """
         SteamCMD class init
         """
-        
         self.config = master_config
         
-        self.steamcmd_installed = False
-        self.steamcmd_path = None
-        self.steamcmd_username = None
-        self.steamcmd_password = None
+        self.steamcmd_installed: bool = False
+        self.steamcmd_path: str = ''
+        self.steamcmd_username: str = ''
+        self.steamcmd_password: str = ''
+
+        self.game: Optional[Game] = game if game else None
+        # if the game is chosen, get the game info from config
+        if self.game:
+            self.appid = self.config.get(self.game.name, 'appid')
+            self.mod_folder_path = self.config.get(self.game.name, 'mod_folder_path')
+        else:
+            self.appid = None
+            self.mod_folder_path = None
+        
+        print(f'appid: {self.appid}')
+        print(f'mod_folder_path: {self.mod_folder_path}')
         
         self.check_for_steamcmd()
     

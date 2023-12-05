@@ -1,13 +1,14 @@
-import typing
+from typing import TYPE_CHECKING, Optional
 import os
+from src.UI.new_downloader_ui import Ui_Downloader
 
 from src.Utils import SteamCMD, Game, cprint, pprint
 
-if typing.TYPE_CHECKING:
+if TYPE_CHECKING:
     from .Utils import Config
 
 class ModDownloader:
-    def __init__(self, config_master: 'Config', start_with_ui=False ,game=None):
+    def __init__(self, config_master: 'Config', start_with_ui: bool=False, selected_game: str=''):
         """
         Mod Downloader class
         
@@ -22,12 +23,15 @@ class ModDownloader:
             The game to download mods for
         """
         self.config = config_master
-        self.steamcmd = SteamCMD(self.config)
-        
-        self.game = game
-        self.mods_folder = None
-        self.mods_list = None
-        self.ui = None
+        self.selected_game: str = selected_game
+        if self.selected_game:
+            appid = self.config.get(self.selected_game, 'appid')
+            mod_folder_path = self.config.get(self.selected_game, 'mod_folder_path')
+            self.game: Optional[Game] = Game(self.selected_game, appid, mod_folder_path)
+        else:
+            self.game: Optional[Game] = None
+
+        self.steamcmd = SteamCMD(self.config, self.game)
         
         if start_with_ui:
             self.start_ui()
@@ -77,20 +81,21 @@ class ModDownloader:
         """
         Get the mod folder from the config
         """
-        # if the game has a mod folder
-        if self.game.mod_folder_path:
-            # if the mod folder exists
-            if os.path.exists(self.game.mod_folder_path):
-                # set the mod folder
-                self.mods_folder = self.game.mod_folder_path
-            # if the mod folder doesn't exist
-            else:
-                # raise an exception
-                raise Exception(f'Mod folder not found at {self.game.mod_folder_path}')
-        # if the game doesn't have a mod folder
-        else:
-            # raise an exception
-            raise Exception(f'No mod folder found for {self.game.name}')
+        pass
+        # # if the game has a mod folder
+        # if self.game.mod_folder_path:
+        #     # if the mod folder exists
+        #     if os.path.exists(self.game.mod_folder_path):
+        #         # set the mod folder
+        #         self.mods_folder = self.game.mod_folder_path
+        #     # if the mod folder doesn't exist
+        #     else:
+        #         # raise an exception
+        #         raise Exception(f'Mod folder not found at {self.game.mod_folder_path}')
+        # # if the game doesn't have a mod folder
+        # else:
+        #     # raise an exception
+        #     raise Exception(f'No mod folder found for {self.game.name}')
     
     def _get_mod_list(self):
         """
@@ -104,26 +109,13 @@ class ModDownloader:
         """
         Start the UI for the mod downloader
         """
-        from src.UI.downloader_ui import ModDownloaderUI
-        self.ui = ModDownloaderUI(self, self.config)
-        self.ui.url_input.bind('<<Paste>>', self.ui.input_box_return)
-        self.ui.mainloop()
-    
-    def download_mod(self, appid, mod_wid):
-        """
-        Download a mod
-        
-        Parmeters
-        ---------
-        mod_wid : str
-            The mod's workshop id
-            
-        Returns
-        -------
-        None
-        """
-        
-        pass
+        # from src.UI.downloader_ui import ModDownloaderUI
+        # self.ui = ModDownloaderUI(self, self.config)
+        # self.ui.url_input.bind('<<Paste>>', self.ui.input_box_return)
+        # self.ui.mainloop()
+        from src.UI.new_downloader_ui import Ui_Downloader
+        self.ui = Ui_Downloader(self)
+        self.ui.show()
     
     #TODO Should I put this here or in the UI?
     def _ui_download_callback(self, download_list):
