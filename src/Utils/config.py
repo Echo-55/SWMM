@@ -3,7 +3,8 @@ from termcolor import cprint, colored
 
 from configparser import ConfigParser
 
-from src.Utils.utils import CONFIGFILE, MYCONFIGFILE
+CONFIGFILE = "config.ini"
+MYCONFIGFILE = "myconfig.ini"
 
 default_config = {
     'steamcmd_path': '',
@@ -25,6 +26,7 @@ class Config(ConfigParser):
     def __init__(self, myconfig=False):
         super().__init__()
 
+        self.default_sections = ['DEFAULT', 'UPDATER', 'DOWNLOADER']
         self['DEFAULT'] = default_config
         self['UPDATER'] = updater_config
         self['DOWNLOADER'] = downloader_config
@@ -40,7 +42,7 @@ class Config(ConfigParser):
             self.read(self.config_file)
         except FileNotFoundError: # if it doesn't exist, create it
             with open(self.config_file, 'w') as configfile:
-                configfile.write(default_config)
+                self.write(configfile)
         
         self.check_config()
 
@@ -85,6 +87,21 @@ class Config(ConfigParser):
                 cprint(f'Added {key} to config', 'yellow')
         
         self.save()
+
+    def get_game_info_from_config(self, game: str):
+        """
+        Gets the game info from the config file.
+
+        Args:
+            game (str): the game to get the info for
+
+        Returns:
+            dict: a dictionary of game info
+        """
+        game_info = {}
+        for key in self[game]:
+            game_info[key] = self[game][key]
+        return game_info
     
     def get_game_list_from_config(self):
         """
@@ -96,9 +113,8 @@ class Config(ConfigParser):
         Returns:
             list: a list of games
         """
-        skip_sections = ['DEFAULT', 'UPDATER']
         game_list = []
         for section in self.sections():
-            if section not in skip_sections:
+            if section not in self.default_sections:
                 game_list.append(section)
         return game_list

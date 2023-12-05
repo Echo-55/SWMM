@@ -1,12 +1,6 @@
-import math
 import os
 import re
-import shutil
-import subprocess
-import sys
 import tkinter as tk
-from io import BytesIO
-from zipfile import ZipFile
 import requests
 import customtkinter as ctk
 import typing
