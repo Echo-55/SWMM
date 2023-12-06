@@ -32,6 +32,8 @@ class ModDownloader:
             self.game: Optional[Game] = None
 
         self.steamcmd = SteamCMD(self.config, self.game)
+
+        self.running: bool = False
         
         if start_with_ui:
             self.start_ui()
@@ -116,9 +118,25 @@ class ModDownloader:
         from src.UI.new_downloader_ui import Ui_Downloader
         self.ui = Ui_Downloader(self)
         self.ui.show()
-    
-    #TODO Should I put this here or in the UI?
-    def _ui_download_callback(self, download_list):
+
+    def download_mod_from_url(self, mod_url: str):
         """
-        Callback for the UI to download mods
+        Download a mod from a url
+        
+        Parameters
+        ----------
+        mod_url : str
+            The url to download the mod from
         """
+        self.steamcmd.download_mod_from_url(mod_url)
+
+    def download_mods_list(self, mod_list: list):
+        """
+        Download a list of mods
+        
+        Parameters
+        ----------
+        mod_list : list
+            A list of mods to download
+        """
+        self.steamcmd.download_mods_list(mod_list)
