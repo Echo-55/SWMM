@@ -1,20 +1,25 @@
 from typing import TYPE_CHECKING, Optional
 import os
-from src.UI.new_downloader_ui import Ui_Downloader
 
 from src.Utils import SteamCMD, Game, cprint, pprint
 
 if TYPE_CHECKING:
     from .Utils import Config
 
+
 class ModDownloader:
-    def __init__(self, config_master: 'Config', start_with_ui: bool=False, selected_game: str=''):
+    def __init__(
+        self,
+        config_master: "Config",
+        start_with_ui: bool = False,
+        selected_game: str = "",
+    ):
         """
         Mod Downloader class
-        
+
         Parameters
         ----------
-        
+
         config_master : Config
             The config object
         start_with_ui : bool
@@ -25,8 +30,8 @@ class ModDownloader:
         self.config = config_master
         self.selected_game: str = selected_game
         if self.selected_game:
-            appid = self.config.get(self.selected_game, 'appid')
-            mod_folder_path = self.config.get(self.selected_game, 'mod_folder_path')
+            appid = self.config.get(self.selected_game, "appid")
+            mod_folder_path = self.config.get(self.selected_game, "mod_folder_path")
             self.game: Optional[Game] = Game(self.selected_game, appid, mod_folder_path)
         else:
             self.game: Optional[Game] = None
@@ -34,12 +39,12 @@ class ModDownloader:
         self.steamcmd = SteamCMD(self.config, self.game)
 
         self.running: bool = False
-        
+
         if start_with_ui:
             self.start_ui()
         else:
             self._init_mod_downloader()
-    
+
     def _init_mod_downloader(self):
         """
         Initialize the mod downloader
@@ -47,7 +52,7 @@ class ModDownloader:
         self._get_game()
         self._get_mod_folder()
         self._get_mod_list()
-    
+
     def _get_game(self):
         """
         Get the game from the config
@@ -65,20 +70,24 @@ class ModDownloader:
                 # print the game list
                 pprint(game_list)
                 # ask the user to select a game
-                cprint('Please select a game to download mods for: ', 'yellow')
+                cprint("Please select a game to download mods for: ", "yellow")
                 # get the user's input
-                self.game = input('Please select a game to download mods for: ')
+                self.game = input("Please select a game to download mods for: ")
             # if there are no games
             else:
                 # raise an exception
-                raise Exception('No games found in config')
-            
+                raise Exception("No games found in config")
+
             # set the game to the game object
-            self.game = Game(self.game, self.config[self.game]['appid'], self.config[self.game]['mod_folder_path'])
-            
+            self.game = Game(
+                self.game,
+                self.config[self.game]["appid"],
+                self.config[self.game]["mod_folder_path"],
+            )
+
             # print the game
             pprint(self.game)
-    
+
     def _get_mod_folder(self):
         """
         Get the mod folder from the config
@@ -98,7 +107,7 @@ class ModDownloader:
         # else:
         #     # raise an exception
         #     raise Exception(f'No mod folder found for {self.game.name}')
-    
+
     def _get_mod_list(self):
         """
         Get a list of mods from local mod folder
@@ -106,7 +115,7 @@ class ModDownloader:
         if self.mods_folder:
             if os.path.exists(self.mods_folder):
                 return os.listdir(self.mods_folder)
-    
+
     def start_ui(self):
         """
         Start the UI for the mod downloader
@@ -116,13 +125,14 @@ class ModDownloader:
         # self.ui.url_input.bind('<<Paste>>', self.ui.input_box_return)
         # self.ui.mainloop()
         from src.UI.new_downloader_ui import Ui_Downloader
+
         self.ui = Ui_Downloader(self)
         self.ui.show()
 
     def download_mod_from_url(self, mod_url: str):
         """
         Download a mod from a url
-        
+
         Parameters
         ----------
         mod_url : str
@@ -133,7 +143,7 @@ class ModDownloader:
     def download_mods_list(self, mod_list: list):
         """
         Download a list of mods
-        
+
         Parameters
         ----------
         mod_list : list

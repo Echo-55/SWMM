@@ -3,6 +3,7 @@ import os
 from io import BytesIO
 from zipfile import ZipFile
 import requests
+import re
 
 from dataclasses import dataclass
 
@@ -70,22 +71,22 @@ class SteamCMD:
             try:
                 self.steamcmd_path = self.config['DEFAULT']['steamcmd_path']
                 if os.path.exists(self.steamcmd_path):
-                    self.steamcmd_installed = True
-                    return True
+                    # self.steamcmd_installed = True
+                    # return True
                     # TODO: Change this back
-                    # if os.path.exists(os.path.join(self.steamcmd_path, 'steamcmd.exe')):
-                    #     self.steamcmd_installed = True
-                    #     return True
+                    if os.path.exists(os.path.join(self.steamcmd_path, 'steamcmd.exe')):
+                        self.steamcmd_installed = True
+                        return True
             except KeyError:
                 return False
         else:
             if os.path.exists(self.steamcmd_path):
-                self.steamcmd_installed = True
-                return True
+                # self.steamcmd_installed = True
+                # return True
                 # TODO: Change this back
-                # if os.path.exists(os.path.join(self.steamcmd_path, 'steamcmd.exe')):
-                #     self.steamcmd_installed = True
-                #     return True
+                if os.path.exists(os.path.join(self.steamcmd_path, 'steamcmd.exe')):
+                    self.steamcmd_installed = True
+                    return True
         return False
     
     def install_steamcmd(self, install_path=None):
@@ -110,15 +111,25 @@ class SteamCMD:
         elif self.config['DEFAULT']['steamcmd_path']:
             try:
                 self.steamcmd_path = self.config['DEFAULT']['steamcmd_path']
+                if self.steamcmd_path.endswith('.exe'):
+                    self.steamcmd_path = self.steamcmd_path.split('\\steamcmd.exe')[0]
             except KeyError:
                 # if the user didn't specify a steamcmd path just install it in the current directory
                 self.steamcmd_path = os.path.join(os.getcwd(), 'steamcmd')
-            
+        # else install it in the current directory
+        else:
+            self.steamcmd_path = os.path.join(os.getcwd(), 'steamcmd')
+        
         # download steamcmd
         resp = requests.get(
                 "https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip"
             )
         ZipFile(BytesIO(resp.content)).extractall(self.steamcmd_path)
+
+        # write the steamcmd path to the config
+        self.config['DEFAULT']['steamcmd_path'] = self.steamcmd_path
+        with open(self.config.config_file, 'w') as config_file:
+            self.config.write(config_file)
         
         # confirm the installation
         if self.check_for_steamcmd():
@@ -142,6 +153,51 @@ class SteamCMD:
         """
         pass
 
+    def get_mod_info_from_url(self, url: str):
+        """
+        Get the mod info from a url
+
+        Parameters
+        ----------
+        url : str
+            The URL to get the mod info from
+
+        Returns
+        -------
+        mod_info : dict
+            The mod info
+        """
+        tuple_list = []
+        # if the url has the &search parameter, remove it
+        if re.search(r'&search', url):
+            url = url.split('&search')[0]
+
+        # try to get the page
+        try:
+            x = requests.get(url)
+        except Exception as e:
+            print(e)
+            return None
+        
+        # collection
+        if re.search("SubscribeCollectionItem", x.text):
+            dls = re.findall(r"SubscribeCollectionItem[\( ']+(\d+)[ ',]+(\d+)'", x.text)
+            for wid, appid in dls:
+                print(f'wid: {wid}, appid: {appid}')
+                tuple_list.append((wid, appid))
+
+        # workshop
+        elif re.search("ShowAddToCollection", x.text):
+            wid, appid = re.findall(r"ShowAddToCollection[\( ']+(\d+)[ ',]+(\d+)'", x.text)[0]
+            print(f'wid: {wid}, appid: {appid}')
+            tuple_list.append((wid, appid))
+
+        else:
+            print('No match')
+            return None
+        
+        return tuple_list
+
     def download_mods_list(self, mod_list: list):
         """
         Download a list of mods
@@ -156,65 +212,5 @@ class SteamCMD:
         success : bool
             Whether or not the download was successful
         """
-        # calculate batch size
-        batch_size = self.batch_size
-        # calculate number of batches
-        num_batches = len(mod_list) // batch_size
-        # calculate the remainder
-        remainder = len(mod_list) % batch_size
-        # if there is a remainder, add one to the number of batches
-        if remainder:
-            num_batches += 1
-
-        # loop through the number of batches
-        for i in range(num_batches):
-            # calculate the start index
-            start_index = i * batch_size
-            # calculate the end index
-            end_index = start_index + batch_size
-            # get the batch
-            batch = mod_list[start_index:end_index]
-            # download the batch
-            self.download_mods_batch(batch)
-
-    def download_mods_batch(self, mod_list: list):
-        """
-        Download a batch of mods
-
-        Parameters
-        ----------
-        mod_list : list
-            A list of mods to download
-
-        Returns
-        -------
-        success : bool
-            Whether or not the download was successful
-        """
-        # if the game is not chosen
-        if not self.game:
-            raise ValueError('Game not chosen')
-        # if the mod folder path is not chosen
-        if not self.mod_folder_path:
-            raise ValueError('Mod folder path not chosen')
-        # if the steamcmd path is not chosen
-        if not self.steamcmd_path:
-            raise ValueError('SteamCMD path not chosen')
-        # if steamcmd is not installed
-        if not self.steamcmd_installed:
-            # raise SteamCMDNotInstalledException(self.steamcmd_path)
-            self.install_steamcmd(self.steamcmd_path)
-        
-        # create the steamcmd command
-        steamcmd_command = f'steamcmd +login anonymous +workshop_download_item '
-        # loop through the mods in the batch
-        for mod in mod_list:
-            # add the mod to the steamcmd command
-            steamcmd_command += f'{self.appid} {mod} '
-        # add the mod folder path to the steamcmd command
-        steamcmd_command += f'+quit'
-
-        print(f'steamcmd_command: {steamcmd_command}')
-        
-        # run the steamcmd command
-        # os.system(steamcmd_command)
+        for i in mod_list:
+            print(self.get_mod_info_from_url(i))
