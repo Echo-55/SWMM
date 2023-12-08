@@ -4,6 +4,7 @@ from io import BytesIO
 from zipfile import ZipFile
 import requests
 import re
+import math
 
 from dataclasses import dataclass
 
@@ -176,7 +177,7 @@ class SteamCMD:
         try:
             x = requests.get(url)
         except Exception as e:
-            print(e)
+            print(f'Error getting page: {e}')
             return None
         
         # collection
@@ -205,12 +206,63 @@ class SteamCMD:
         Parameters
         ----------
         mod_list : list
-            A list of mods to download
+            A list of urls to download mods from
 
         Returns
         -------
         success : bool
             Whether or not the download was successful
         """
-        for i in mod_list:
-            print(self.get_mod_info_from_url(i))
+        # get the wids and appid for each of the mods
+        wids_appids = []
+        for url in mod_list:
+            wids_appids.append(self.get_mod_info_from_url(url))
+        
+        dl_length = len(wids_appids)
+        batch_limit = math.ceil(dl_length / self.batch_size)
+        # get the number of batches
+        if dl_length % self.batch_size == 0:
+            batch_limit = dl_length // self.batch_size
+        else:
+            batch_limit = (dl_length // self.batch_size) + 1
+
+        # download the mods in batches
+        for i in range(batch_limit):
+            # get the batch
+            batch = wids_appids[i * self.batch_size : (i + 1) * self.batch_size]
+            batch_count = len(batch)
+            print(f'Batch {i + 1} of {batch_limit} ({batch_count} mods)')
+
+            # build the args list
+            args = [os.path.join(self.steamcmd_path, 'steamcmd.exe')]
+            args.append('+login anonymous') # TODO: Add login
+            args.append(f'+force_install_dir {self.mod_folder_path}')
+            args.append('+workshop_download_item')
+
+            for wid, appid in batch:
+                args.append(f'{appid} {wid}')
+
+            args.append('+quit')
+
+            print(args)
+            # TODO I gtta get a reference to the ui here or something
+            # bc i need to update the progress bar and stuff
+
+    def run_steamcmd(self, args: list):
+        """
+        Run steamcmd with the given args
+
+        Parameters
+        ----------
+        args : list
+            The args to run steamcmd with
+
+        Returns
+        -------
+        success : bool
+            Whether or not the download was successful
+        """
+        if self.steamcmd_installed:
+            os.system(' '.join(args))
+        else:
+            raise SteamCMDNotInstalledException('SteamCMD is not installed')

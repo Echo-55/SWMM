@@ -1,12 +1,12 @@
 from PyQt6 import QtCore, QtGui, QtWidgets
-import PyQt6
+from PyQt6.QtCore import QEvent, QEventLoop, QThread, pyqtSignal, pyqtSlot
+from PyQt6.QtGui import QContextMenuEvent, QMouseEvent, QWheelEvent, QKeyEvent
 from PyQt6.QtWidgets import QWidget, QMenu, QStyle
 from typing import TYPE_CHECKING, Optional
 from termcolor import colored, cprint, COLORS
 
 if TYPE_CHECKING:
     from src.downloader import ModDownloader
-
 
 class UiTab_Downloader(QtWidgets.QTabWidget):
     def __init__(self, parent_window: "Ui_Downloader"):
@@ -57,7 +57,10 @@ class UiTab_Downloader(QtWidgets.QTabWidget):
         self.parent_window.mod_downloader.running = True
         self.add_text_to_console("Starting download...", color="green")
         urls = self.url_input_box.toPlainText().split("\n")
-        self.parent_window.mod_downloader.download_mods_list(urls)
+        try:
+            self.parent_window.mod_downloader.download_mods_list(urls)
+        except Exception as e:
+            self.add_text_to_console(f"Error: {e}", color="red")
 
     def add_text_to_console(
         self, text: str, newline: bool = True, color: str = "white"

@@ -5,6 +5,7 @@ from src.Utils import SteamCMD, Game, cprint, pprint
 
 if TYPE_CHECKING:
     from .Utils import Config
+    from src.UI.new_downloader_ui import Ui_Downloader
 
 
 class ModDownloader:
@@ -44,6 +45,41 @@ class ModDownloader:
             self.start_ui()
         else:
             self._init_mod_downloader()
+    
+    @property
+    def steamcmd_installed(self) -> bool:
+        """
+        Check if steamcmd is installed
+        """
+        return self.steamcmd.steamcmd_installed
+    
+    @steamcmd_installed.setter
+    def steamcmd_installed(self, value: bool):
+        """
+        Set the steamcmd installed value
+        """
+        self.steamcmd.steamcmd_installed = value
+
+    @property
+    def steamcmd_path(self) -> str:
+        """
+        Get the steamcmd path
+        """
+        return self.steamcmd.steamcmd_path
+    
+    @steamcmd_path.setter
+    def steamcmd_path(self, value: str):
+        """
+        Set the steamcmd path
+        """
+        self.steamcmd.steamcmd_path = value
+    
+    @property
+    def ui(self) -> "Ui_Downloader":
+        """
+        Get the UI
+        """
+        return self._ui
 
     def _init_mod_downloader(self):
         """
@@ -126,8 +162,8 @@ class ModDownloader:
         # self.ui.mainloop()
         from src.UI.new_downloader_ui import Ui_Downloader
 
-        self.ui = Ui_Downloader(self)
-        self.ui.show()
+        self._ui: 'Ui_Downloader' = Ui_Downloader(self)
+        self._ui.show()
 
     def download_mod_from_url(self, mod_url: str):
         """
