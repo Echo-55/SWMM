@@ -1,9 +1,9 @@
 from PyQt6 import QtCore, QtGui, QtWidgets
-from PyQt6.QtCore import QEvent, QEventLoop, QThread, pyqtSignal, pyqtSlot
-from PyQt6.QtGui import QContextMenuEvent, QMouseEvent, QWheelEvent, QKeyEvent
-from PyQt6.QtWidgets import QWidget, QMenu, QStyle
-from typing import TYPE_CHECKING, Optional
-from termcolor import colored, cprint, COLORS
+from PyQt6.QtGui import QIcon 
+from PyQt6.QtWidgets import QWidget, QStyle
+from typing import TYPE_CHECKING, Optional, Union
+from termcolor import COLORS
+from superqt import QCollapsible
 
 if TYPE_CHECKING:
     from src.downloader import ModDownloader
@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 class UiTab_Downloader(QtWidgets.QTabWidget):
     def __init__(self, parent_window: "Ui_Downloader"):
         super().__init__()
-        self.parent_window = parent_window
+        self._parent_window = parent_window
 
         self.setupUi()
 
@@ -51,14 +51,15 @@ class UiTab_Downloader(QtWidgets.QTabWidget):
 
     def _handle_download_button(self):
         """Download the mod from the url"""
-        if self.parent_window.mod_downloader.running:
+        # TODO: Just disable the button if the downloader is running
+        if self._parent_window.mod_downloader.running:
             self.add_text_to_console("Already running!", color="red")
             return
-        self.parent_window.mod_downloader.running = True
+        self._parent_window.mod_downloader.running = True
         self.add_text_to_console("Starting download...", color="green")
         urls = self.url_input_box.toPlainText().split("\n")
         try:
-            self.parent_window.mod_downloader.download_mods_list(urls)
+            self._parent_window.mod_downloader.download_mods_list(urls)
         except Exception as e:
             self.add_text_to_console(f"Error: {e}", color="red")
 
@@ -80,10 +81,53 @@ class UiTab_Downloader(QtWidgets.QTabWidget):
         self.console_output_box.setTextColor(QtGui.QColor("white"))
 
 
+class Ui_CollapsibleOptions(QCollapsible):
+    def __init__(
+            self, 
+            parent_window: "Ui_Downloader",
+            title: str = "Options",
+            parent: Optional[QWidget] = None,
+            expandedIcon: Optional[Union[QIcon, str]] = "▼",
+            collapsedIcon: Optional[Union[QIcon, str]] = "▲",
+            ):
+        super().__init__(title, parent, expandedIcon, collapsedIcon)
+        self._parent_window = parent_window
+        self.mod_downloader = parent_window.mod_downloader
+
+        self.rename_mode: bool = False
+        self.copy_mode: bool = False
+
+        self.setupUi()
+
+    def setupUi(self):
+        """Setup the ui for the options widget"""
+        self.game_selection_label = QtWidgets.QLabel("Select a game:")
+        self.addWidget(self.game_selection_label)
+
+        self.game_selection_box = QtWidgets.QComboBox()
+        self.game_selection_box.addItems(
+            self.mod_downloader.config.get_game_list_from_config()
+        )
+        self.game_selection_box.currentTextChanged.connect(
+            self._handle_game_selection_changed
+        )
+        self.addWidget(self.game_selection_box)
+
+    def _handle_game_selection_changed(self):
+        """When the game selection is changed"""
+        self.game_selection = self.game_selection_box.currentText()
+        self.game_selected = True
+        self.game = self.mod_downloader.config.get_game_info_from_config(
+            self.game_selection
+        )
+        self._parent_window.downloader_tab.add_text_to_console(
+            f"Game selected: {self.game_selection}", color="green"
+        )
+
 class Ui_Options(QWidget):
     def __init__(self, parent_window: "Ui_Downloader"):
         super().__init__()
-        self.parent_window = parent_window
+        self._parent_window = parent_window
         self.mod_downloader = parent_window.mod_downloader
 
         self.rename_mode: bool = False
@@ -145,12 +189,12 @@ class Ui_Options(QWidget):
         """When the rename mode is changed"""
         if self.rename_mode_checkbox.isChecked():
             self.rename_mode = True
-            self.parent_window.downloader_tab.add_text_to_console(
+            self._parent_window.downloader_tab.add_text_to_console(
                 "Rename mode enabled", color="green"
             )
         else:
             self.rename_mode = False
-            self.parent_window.downloader_tab.add_text_to_console(
+            self._parent_window.downloader_tab.add_text_to_console(
                 "Rename mode disabled", color="red"
             )
 
@@ -158,12 +202,12 @@ class Ui_Options(QWidget):
         """When the copy mode is changed"""
         if self.copy_mode_checkbox.isChecked():
             self.copy_mode = True
-            self.parent_window.downloader_tab.add_text_to_console(
+            self._parent_window.downloader_tab.add_text_to_console(
                 "Copy mode enabled", color="green"
             )
         else:
             self.copy_mode = False
-            self.parent_window.downloader_tab.add_text_to_console(
+            self._parent_window.downloader_tab.add_text_to_console(
                 "Copy mode disabled", color="red"
             )
 
@@ -174,7 +218,7 @@ class Ui_Options(QWidget):
         self.game = self.mod_downloader.config.get_game_info_from_config(
             self.game_selection
         )
-        self.parent_window.downloader_tab.add_text_to_console(
+        self._parent_window.downloader_tab.add_text_to_console(
             f"Game selected: {self.game_selection}", color="green"
         )
 
@@ -182,37 +226,37 @@ class Ui_Options(QWidget):
 class Ui_StatusBar(QtWidgets.QStatusBar):
     def __init__(self, parent_window: "Ui_Downloader"):
         super().__init__()
-        self.parent_window = parent_window
+        self._parent_window = parent_window
         self.game_selection = ""
         self.setupUi()
 
     @property
     def steamcmd_installed(self):
-        return self.parent_window.steamcmd_installed
+        return self._parent_window.steamcmd_installed
 
     @steamcmd_installed.setter
     def steamcmd_installed(self, value: bool):
-        self.parent_window.steamcmd_installed = value
+        self._parent_window.steamcmd_installed = value
 
     @property
     def game_selected(self):
-        return self.parent_window.game_selected
+        return self._parent_window.game_selected
 
     @game_selected.setter
     def game_selected(self, value: bool):
-        self.parent_window.game_selected = value
+        self._parent_window.game_selected = value
 
     @property
     def game_selection(self):
-        return self.parent_window.game_selection
+        return self._parent_window.game_selection
 
     @game_selection.setter
     def game_selection(self, value: str):
-        self.parent_window.game_selection = value
+        self._parent_window.game_selection = value
 
     @property
     def game(self):
-        return self.parent_window.game
+        return self._parent_window.game
 
     def update_status(self, widget: QWidget, status: bool):
         """Update the status of one of the widgets in the status bar
@@ -271,7 +315,7 @@ class Ui_StatusBar(QtWidgets.QStatusBar):
 class Ui_MenuBar(QtWidgets.QMenuBar):
     def __init__(self, parent_window: "Ui_Downloader"):
         super().__init__()
-        self.parent_window = parent_window
+        self._parent_window = parent_window
         self.setupUi()
 
     def setupUi(self):
@@ -284,7 +328,7 @@ class Ui_MenuBar(QtWidgets.QMenuBar):
         # exit action
         if self.file_menu:
             self.exit_action = QtGui.QAction("Exit")
-            self.exit_action.triggered.connect(self.parent_window.close)
+            self.exit_action.triggered.connect(self._parent_window.close)
             self.file_menu.addAction(self.exit_action)
 
         # help menu
@@ -310,9 +354,9 @@ class Ui_Downloader(QWidget):
     ):
         super().__init__()
         self.mod_downloader = mod_downloader
-        self.parent_window = parent_window
+        self._parent_window = parent_window
 
-        self.steamcmd_installed = self.mod_downloader.steamcmd.check_for_steamcmd()
+        self.steamcmd_installed = self.mod_downloader.steamcmd_installed
 
         self.running = False
         self.game_list = []
@@ -324,6 +368,8 @@ class Ui_Downloader(QWidget):
         self.copy_mode = False
 
         self.setupUi()
+        self.mod_downloader.ui = self
+        self.mod_downloader.ui_running = True
 
     @property
     def config(self):
@@ -335,11 +381,11 @@ class Ui_Downloader(QWidget):
 
     @property
     def steamcmd_installed(self):
-        return self.mod_downloader.steamcmd.steamcmd_installed
+        return self.mod_downloader.steamcmd_installed
 
     @steamcmd_installed.setter
     def steamcmd_installed(self, value: bool):
-        self.mod_downloader.steamcmd.steamcmd_installed = value
+        self.mod_downloader.steamcmd_installed = value
 
     def setupUi(self):
         """Setup the ui for the mod downloader"""
@@ -372,7 +418,7 @@ class Ui_Downloader(QWidget):
         # TODO: Change the options button to be a dropdown menu
         # anything cleaner than what it is now
         # options widget
-        self.options_widget = Ui_Options(self)
+        self.options_widget = Ui_CollapsibleOptions(self)
         self.options_widget.setVisible(False)
         self.layout_.addWidget(self.options_widget, 2, 0)
 

@@ -1,3 +1,4 @@
+from threading import Thread
 from typing import TYPE_CHECKING, Optional
 import os
 from io import BytesIO
@@ -5,13 +6,14 @@ from zipfile import ZipFile
 import requests
 import re
 import math
+import subprocess
 
 from dataclasses import dataclass
 
 from src.Utils import SteamCMDNotInstalledException
 
 if TYPE_CHECKING:
-    from src.Utils import Config
+    from downloader import ModDownloader
 
 @dataclass
 class Game:
@@ -23,19 +25,22 @@ class SteamCMD:
     """
     SteamCMD class
     """
-    def __init__(self, master_config: 'Config', game: Optional[Game]=None):
+    # def __init__(self, master_config: 'Config', game: Optional[Game]=None):
+    def __init__(self, mod_downloader: 'ModDownloader'):
         """
         SteamCMD class init
         """
-        self.config = master_config
+        self.config = mod_downloader.config
         self.batch_size: int = int(self.config.get('DOWNLOADER', 'batch_count', fallback=5))
         
+        self._mod_downloader: 'ModDownloader' = mod_downloader
+
         self._steamcmd_installed: bool = False
         self.steamcmd_path: str = ''
         self.steamcmd_username: str = ''
         self.steamcmd_password: str = ''
 
-        self.game: Optional[Game] = game if game else None
+        self.game: Optional[Game] = mod_downloader.game if mod_downloader.game else None
         # if the game is chosen, get the game info from config
         if self.game:
             self.appid = self.config.get(self.game.name, 'appid')
@@ -72,9 +77,6 @@ class SteamCMD:
             try:
                 self.steamcmd_path = self.config['DEFAULT']['steamcmd_path']
                 if os.path.exists(self.steamcmd_path):
-                    # self.steamcmd_installed = True
-                    # return True
-                    # TODO: Change this back
                     if os.path.exists(os.path.join(self.steamcmd_path, 'steamcmd.exe')):
                         self.steamcmd_installed = True
                         return True
@@ -82,9 +84,6 @@ class SteamCMD:
                 return False
         else:
             if os.path.exists(self.steamcmd_path):
-                # self.steamcmd_installed = True
-                # return True
-                # TODO: Change this back
                 if os.path.exists(os.path.join(self.steamcmd_path, 'steamcmd.exe')):
                     self.steamcmd_installed = True
                     return True
@@ -178,6 +177,8 @@ class SteamCMD:
             x = requests.get(url)
         except Exception as e:
             print(f'Error getting page: {e}')
+            if self._mod_downloader.ui_running:
+                self._mod_downloader.ui.downloader_tab.add_text_to_console(f'Error getting page: {e}', color='red')
             return None
         
         # collection
@@ -195,6 +196,8 @@ class SteamCMD:
 
         else:
             print('No match')
+            if self._mod_downloader.ui_running:
+                self._mod_downloader.ui.downloader_tab.add_text_to_console('No match', color='red')
             return None
         
         return tuple_list
@@ -214,11 +217,11 @@ class SteamCMD:
             Whether or not the download was successful
         """
         # get the wids and appid for each of the mods
-        wids_appids = []
+        download_list = []
         for url in mod_list:
-            wids_appids.append(self.get_mod_info_from_url(url))
+            download_list.append(self.get_mod_info_from_url(url))
         
-        dl_length = len(wids_appids)
+        dl_length = len(download_list)
         batch_limit = math.ceil(dl_length / self.batch_size)
         # get the number of batches
         if dl_length % self.batch_size == 0:
@@ -226,27 +229,56 @@ class SteamCMD:
         else:
             batch_limit = (dl_length // self.batch_size) + 1
 
+        all_batches = []
+
         # download the mods in batches
         for i in range(batch_limit):
             # get the batch
-            batch = wids_appids[i * self.batch_size : (i + 1) * self.batch_size]
+            batch = download_list[i * self.batch_size : (i + 1) * self.batch_size]
             batch_count = len(batch)
+            all_batches.append(batch)
             print(f'Batch {i + 1} of {batch_limit} ({batch_count} mods)')
 
             # build the args list
             args = [os.path.join(self.steamcmd_path, 'steamcmd.exe')]
             args.append('+login anonymous') # TODO: Add login
-            args.append(f'+force_install_dir {self.mod_folder_path}')
-            args.append('+workshop_download_item')
+            # args.append(f'+force_install_dir {self.mod_folder_path}')
 
-            for wid, appid in batch:
-                args.append(f'{appid} {wid}')
+            for i in batch: # batch is a list of tuples
+                for wid, appid in i: # i is a tuple
+                    args.append(f'+workshop_download_item {appid} {wid}')
 
+            args.append("validate")
             args.append('+quit')
 
             print(args)
-            # TODO I gtta get a reference to the ui here or something
-            # bc i need to update the progress bar and stuff
+            # do the ui stuff
+            # if self._mod_downloader.ui_running:
+            #     self._mod_downloader.ui.downloader_tab.add_text_to_console(' '.join(args), color='yellow')
+
+            # run steamcmd
+            # self.run_steamcmd(args)
+            self.run_steamcmd_threaded(args)
+
+        return True
+    
+    def run_steamcmd_threaded(self, args: list):
+        """
+        Run steamcmd in a thread with the given args
+
+        Parameters
+        ----------
+        args : list
+            The args to run steamcmd with
+
+        Returns
+        -------
+        success : bool
+            Whether or not the download was successful
+        """
+        t = Thread(target=self.run_steamcmd, args=(args,))
+        t.start()
+        return True
 
     def run_steamcmd(self, args: list):
         """
@@ -263,6 +295,21 @@ class SteamCMD:
             Whether or not the download was successful
         """
         if self.steamcmd_installed:
-            os.system(' '.join(args))
+            # os.system(' '.join(args))
+
+            proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            stdout, stderr = proc.communicate()
+
+            if stdout:
+                print(stdout.decode('utf-8'))
+                if self._mod_downloader.ui_running:
+                    self._mod_downloader.ui.downloader_tab.add_text_to_console(stdout.decode('utf-8'), color='green')
+            if stderr:
+                print(stderr.decode('utf-8'))
+                if self._mod_downloader.ui_running:
+                    self._mod_downloader.ui.downloader_tab.add_text_to_console(stderr.decode('utf-8'), color='red')
+
+            return True
+
         else:
             raise SteamCMDNotInstalledException('SteamCMD is not installed')
