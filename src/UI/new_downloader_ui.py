@@ -51,13 +51,12 @@ class UiTab_Downloader(QtWidgets.QTabWidget):
 
     def _handle_download_button(self):
         """Download the mod from the url"""
-        # TODO: Just disable the button if the downloader is running
-        if self._parent_window.mod_downloader.running:
-            self.add_text_to_console("Already running!", color="red")
-            return
-        self._parent_window.mod_downloader.running = True
+        # self._parent_window.downloader_tab.download_button.setEnabled(False)
         self.add_text_to_console("Starting download...", color="green")
         urls = self.url_input_box.toPlainText().split("\n")
+        if len(urls) == 0 or urls[0] == "":
+            self.add_text_to_console("No URLs entered", color="red")
+            return
         try:
             self._parent_window.mod_downloader.download_mods_list(urls)
         except Exception as e:
@@ -371,6 +370,10 @@ class Ui_Downloader(QWidget):
         self.mod_downloader.ui = self
         self.mod_downloader.ui_running = True
 
+        # if steamcmd is not installed, show a popup
+        if not self.steamcmd_installed:
+            self.show_steamcmd_not_installed_popup()
+
     @property
     def config(self):
         return self.mod_downloader.config
@@ -429,10 +432,6 @@ class Ui_Downloader(QWidget):
         self.downloader_tab = UiTab_Downloader(self)
         self.tabs_widget.addTab(self.downloader_tab, "Downloader")
 
-        # if steamcmd is not installed, show a popup
-        if not self.steamcmd_installed:
-            self.show_steamcmd_not_installed_popup()
-
     def show_steamcmd_not_installed_popup(self):
         """Show a popup if steamcmd is not installed"""
         # show a popup and ask if the user wants to install steamcmd
@@ -452,7 +451,15 @@ class Ui_Downloader(QWidget):
     def _handle_steamcmd_not_installed_popup_clicked(self, button):
         """Handle the steamcmd not installed popup being clicked"""
         if button.text() == "&Yes":
-            self.mod_downloader.steamcmd.install_steamcmd()
+            if self.mod_downloader.steamcmd.install_steamcmd():
+                self.status_bar.refresh()
+                self.downloader_tab.add_text_to_console(
+                    "SteamCMD installed successfully!", color="green"
+                )
+                self.downloader_tab.add_text_to_console(
+                    "Please wait as steamcmd updates...", color="green"
+                )
+                self.mod_downloader.steamcmd.update_steamcmd()
         else:
             self.close()
 

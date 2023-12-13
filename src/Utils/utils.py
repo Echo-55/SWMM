@@ -36,9 +36,10 @@ class SteamCMD:
         self._mod_downloader: 'ModDownloader' = mod_downloader
 
         self._steamcmd_installed: bool = False
-        self.steamcmd_path: str = ''
-        self.steamcmd_username: str = ''
-        self.steamcmd_password: str = ''
+        self.fresh_install: bool = False
+        self.steamcmd_path: str = self.config.get('DEFAULT', 'steamcmd_path', fallback='')
+        self.steamcmd_username: str = self.config.get('DEFAULT', 'steamcmd_username', fallback='')
+        self.steamcmd_password: str = self.config.get('DEFAULT', 'steamcmd_password', fallback='')
 
         self.game: Optional[Game] = mod_downloader.game if mod_downloader.game else None
         # if the game is chosen, get the game info from config
@@ -69,9 +70,9 @@ class SteamCMD:
         """
         self._steamcmd_installed = value
     
-    def check_for_steamcmd(self) -> bool:
+    def check_for_steamcmd(self):
         """
-        Check if steamcmd is installed
+        Check if steamcmd is installed and also if it is a fresh installation
         """
         if not self.steamcmd_path:
             try:
@@ -88,6 +89,17 @@ class SteamCMD:
                     self.steamcmd_installed = True
                     return True
         return False
+    
+    def check_fresh_install(self):
+        """
+        Check if steamcmd is a fresh install
+        """
+        if os.path.exists(os.path.join(self.steamcmd_path, 'steamapps')):
+            self.fresh_install = False
+            return False
+        else:
+            self.fresh_install = True
+            return True
     
     def install_steamcmd(self, install_path=None):
         """
@@ -133,10 +145,30 @@ class SteamCMD:
         
         # confirm the installation
         if self.check_for_steamcmd():
+            self.fresh_install = True if self.check_fresh_install() else False
             return True
         else:
             return False
     
+    def update_steamcmd(self):
+        """
+        Update steamcmd. Useful for when steamcmd is first downloaded but not installed
+        
+        Returns
+        -------
+        success : bool
+            Whether or not the update was successful
+        """
+        if self.steamcmd_installed:
+            # run steamcmd with the update args
+            args = [os.path.join(self.steamcmd_path, 'steamcmd.exe')]
+            args.append('+login anonymous')
+            args.append('+quit')
+            self.run_steamcmd_threaded(args)
+            return True
+        else:
+            raise SteamCMDNotInstalledException('SteamCMD is not installed')
+
     def download_mod_from_url(self, url: str):
         """
         Download a mod from a url

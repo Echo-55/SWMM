@@ -111,6 +111,7 @@ class ModDownloader:
         """
         Set the running value
         """
+        self.ui.downloader_tab.download_button.setEnabled(value)
         self._running = value
 
     @property
@@ -173,6 +174,9 @@ class ModDownloader:
         mod_url : str
             The url to download the mod from
         """
+        if self.running:
+            return
+        self.running = True
         self.steamcmd.download_mod_from_url(mod_url)
 
     def download_mods_list(self, mod_list: list):
@@ -184,4 +188,7 @@ class ModDownloader:
         mod_list : list
             A list of mods to download
         """
+        if self.running:
+            return
+        self.running = True
         self.steamcmd.download_mods_list(mod_list)
