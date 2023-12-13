@@ -1,5 +1,7 @@
+*.code-workspace
 .vscode/*
 myconfig.ini
+steamcmd/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
