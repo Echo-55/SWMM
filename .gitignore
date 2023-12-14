@@ -2,6 +2,7 @@
 .vscode/*
 myconfig.ini
 steamcmd/
+.swmm/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

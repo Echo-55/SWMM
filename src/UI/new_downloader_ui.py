@@ -1,12 +1,15 @@
 from PyQt6 import QtCore, QtGui, QtWidgets
-from PyQt6.QtGui import QIcon 
-from PyQt6.QtWidgets import QWidget, QStyle
+from PyQt6.QtGui import QIcon
+from PyQt6.QtWidgets import QWidget, QStyle, QStyleOptionButton
 from typing import TYPE_CHECKING, Optional, Union
 from termcolor import COLORS
 from superqt import QCollapsible
+import superqt.fonticon as fi
+from fonticon_fa6 import FA6S
 
 if TYPE_CHECKING:
     from src.downloader import ModDownloader
+
 
 class UiTab_Downloader(QtWidgets.QTabWidget):
     def __init__(self, parent_window: "Ui_Downloader"):
@@ -40,6 +43,21 @@ class UiTab_Downloader(QtWidgets.QTabWidget):
         self.console_output_box = QtWidgets.QTextEdit()
         self.console_output_box.setReadOnly(True)
         self.layout_.addWidget(self.console_output_box, 1, 1)
+        
+        # progress bar
+        self.progress_bar = QtWidgets.QProgressBar()
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setVisible(False)
+        self.layout_.addWidget(self.progress_bar, 2, 0, 1, 2)
+        
+        # spinner icon
+        self.spinner_button = QtWidgets.QPushButton()
+        self.spinner_button.setIcon(fi.icon(FA6S.spinner, color="green", animation=fi.spin(self.spinner_button)))
+        self.spinner_button.setIconSize(QtCore.QSize(16, 16))
+        self.spinner_button.setFlat(True)
+        self.spinner_button.setVisible(False)
+        self.layout_.addWidget(self.spinner_button, 1, 1, QtCore.Qt.AlignmentFlag.AlignHCenter)
 
         # download button
         self.download_button = QtWidgets.QPushButton("Download")
@@ -49,9 +67,16 @@ class UiTab_Downloader(QtWidgets.QTabWidget):
             self.download_button, 2, 0, 1, 2, QtCore.Qt.AlignmentFlag.AlignHCenter
         )
 
+    def update_progress_bar(self, value: int):
+        """Update the progress bar
+
+        Args:
+            value (int): the value to set the progress bar to
+        """
+        self.progress_bar.setValue(value)
+
     def _handle_download_button(self):
         """Download the mod from the url"""
-        # self._parent_window.downloader_tab.download_button.setEnabled(False)
         self.add_text_to_console("Starting download...", color="green")
         urls = self.url_input_box.toPlainText().split("\n")
         if len(urls) == 0 or urls[0] == "":
@@ -59,6 +84,10 @@ class UiTab_Downloader(QtWidgets.QTabWidget):
             return
         try:
             self._parent_window.mod_downloader.download_mods_list(urls)
+            self.download_button.setEnabled(False)
+            self.download_button.setVisible(False)
+            self.progress_bar.setVisible(True)
+            self.spinner_button.setVisible(True)
         except Exception as e:
             self.add_text_to_console(f"Error: {e}", color="red")
 
@@ -82,13 +111,13 @@ class UiTab_Downloader(QtWidgets.QTabWidget):
 
 class Ui_CollapsibleOptions(QCollapsible):
     def __init__(
-            self, 
-            parent_window: "Ui_Downloader",
-            title: str = "Options",
-            parent: Optional[QWidget] = None,
-            expandedIcon: Optional[Union[QIcon, str]] = "▼",
-            collapsedIcon: Optional[Union[QIcon, str]] = "▲",
-            ):
+        self,
+        parent_window: "Ui_Downloader",
+        title: str = "Options",
+        parent: Optional[QWidget] = None,
+        expandedIcon: Optional[Union[QIcon, str]] = "▼",
+        collapsedIcon: Optional[Union[QIcon, str]] = "▲",
+    ):
         super().__init__(title, parent, expandedIcon, collapsedIcon)
         self._parent_window = parent_window
         self.mod_downloader = parent_window.mod_downloader
@@ -100,28 +129,54 @@ class Ui_CollapsibleOptions(QCollapsible):
 
     def setupUi(self):
         """Setup the ui for the options widget"""
-        self.game_selection_label = QtWidgets.QLabel("Select a game:")
-        self.addWidget(self.game_selection_label)
+        # rename mode
+        self.rename_mode_checkbox = QtWidgets.QCheckBox()
+        self.rename_mode_checkbox.setText("Rename mode")
+        self.rename_mode_checkbox.stateChanged.connect(self._handle_rename_mode_changed)
+        self.addWidget(self.rename_mode_checkbox)
 
-        self.game_selection_box = QtWidgets.QComboBox()
-        self.game_selection_box.addItems(
-            self.mod_downloader.config.get_game_list_from_config()
-        )
-        self.game_selection_box.currentTextChanged.connect(
-            self._handle_game_selection_changed
-        )
-        self.addWidget(self.game_selection_box)
+        # copy mode
+        self.copy_mode_checkbox = QtWidgets.QCheckBox()
+        self.copy_mode_checkbox.setText("Copy mode")
+        self.copy_mode_checkbox.stateChanged.connect(self._handle_copy_mode_changed)
+        self.addWidget(self.copy_mode_checkbox)
 
-    def _handle_game_selection_changed(self):
-        """When the game selection is changed"""
-        self.game_selection = self.game_selection_box.currentText()
-        self.game_selected = True
-        self.game = self.mod_downloader.config.get_game_info_from_config(
-            self.game_selection
-        )
-        self._parent_window.downloader_tab.add_text_to_console(
-            f"Game selected: {self.game_selection}", color="green"
-        )
+        # mode help button to spawn a popup
+        self.mode_help_button = QtWidgets.QPushButton("Help")
+        self.mode_help_button.clicked.connect(self._handle_mode_help_button_clicked)
+        self.addWidget(self.mode_help_button)
+
+    def _handle_mode_help_button_clicked(self):
+        """When the mode help button is clicked"""
+        help_text = "Rename mode: Renames the downloaded file to the name of the mod\nCopy mode: Copies the downloaded file to the mod directory"
+        QtWidgets.QMessageBox.information(self, "Mode Help", help_text)
+
+    def _handle_rename_mode_changed(self):
+        """When the rename mode is changed"""
+        if self.rename_mode_checkbox.isChecked():
+            self.rename_mode = True
+            self._parent_window.downloader_tab.add_text_to_console(
+                "Rename mode enabled", color="green"
+            )
+        else:
+            self.rename_mode = False
+            self._parent_window.downloader_tab.add_text_to_console(
+                "Rename mode disabled", color="red"
+            )
+
+    def _handle_copy_mode_changed(self):
+        """When the copy mode is changed"""
+        if self.copy_mode_checkbox.isChecked():
+            self.copy_mode = True
+            self._parent_window.downloader_tab.add_text_to_console(
+                "Copy mode enabled", color="green"
+            )
+        else:
+            self.copy_mode = False
+            self._parent_window.downloader_tab.add_text_to_console(
+                "Copy mode disabled", color="red"
+            )
+
 
 class Ui_Options(QWidget):
     def __init__(self, parent_window: "Ui_Downloader"):
@@ -265,11 +320,31 @@ class Ui_StatusBar(QtWidgets.QStatusBar):
             status (str): the status to set
         """
         if status:
-            checkmark_icon = QStyle.StandardPixmap.SP_DialogApplyButton
-            widget.setPixmap(self.style().standardPixmap(checkmark_icon))
+            checkmark_icon = fi.icon(
+                FA6S.check,
+                color="green",
+                states={
+                    "Active": {
+                        "glyph_key": FA6S.spinner,
+                        "color": "red",
+                        "scale_factor": 0.5,
+                        "animation": fi.spin(widget),
+                    },
+                    "Disabled": {
+                        "color": "green",
+                        "scale_factor": 0.8,
+                        "animation": fi.spin(widget),
+                    },
+                },
+            )
+            if isinstance(widget, QtWidgets.QLabel):
+                widget.setPixmap(checkmark_icon.pixmap(16, 16))
+                checkmark_icon.Mode = "Active"
+                checkmark_icon.State = "Active"
         else:
-            x_icon = QStyle.StandardPixmap.SP_DialogCancelButton
-            widget.setPixmap(self.style().standardPixmap(x_icon))
+            x_icon = fi.icon(FA6S.xmark, color="red")
+            if isinstance(widget, QtWidgets.QLabel):
+                widget.setPixmap(x_icon.pixmap(16, 16))
 
     def refresh(self):
         """Refresh the status bar"""
@@ -408,21 +483,11 @@ class Ui_Downloader(QWidget):
         self.status_bar = Ui_StatusBar(self)
         self.layout_.addWidget(self.status_bar, 4, 0)
 
-        # self.toggle_options_visibility_button = QtWidgets.QPushButton('Show Options')
-        self.toggle_options_visibility_button = QtWidgets.QPushButton(
-            icon=QtGui.QIcon("icons/arrow_down.png"), text="Show Options"
-        )
-        self.toggle_options_visibility_button.setCheckable(True)
-        self.toggle_options_visibility_button.clicked.connect(
-            self._handle_toggle_options_visibility
-        )
-        self.layout_.addWidget(self.toggle_options_visibility_button, 1, 0)
-
         # TODO: Change the options button to be a dropdown menu
         # anything cleaner than what it is now
         # options widget
         self.options_widget = Ui_CollapsibleOptions(self)
-        self.options_widget.setVisible(False)
+        # self.options_widget.setVisible(False)
         self.layout_.addWidget(self.options_widget, 2, 0)
 
         # tabs widget
@@ -462,12 +527,3 @@ class Ui_Downloader(QWidget):
                 self.mod_downloader.steamcmd.update_steamcmd()
         else:
             self.close()
-
-    def _handle_toggle_options_visibility(self):
-        """Toggle the visibility of the options widget"""
-        if self.options_widget.isVisible():
-            self.options_widget.setVisible(False)
-            self.toggle_options_visibility_button.setText("Show Options")
-        else:
-            self.options_widget.setVisible(True)
-            self.toggle_options_visibility_button.setText("Hide Options")

@@ -155,10 +155,6 @@ class ModDownloader:
         """
         Start the UI for the mod downloader
         """
-        # from src.UI.downloader_ui import ModDownloaderUI
-        # self.ui = ModDownloaderUI(self, self.config)
-        # self.ui.url_input.bind('<<Paste>>', self.ui.input_box_return)
-        # self.ui.mainloop()
         from src.UI.new_downloader_ui import Ui_Downloader
 
         self._ui: 'Ui_Downloader' = Ui_Downloader(self)

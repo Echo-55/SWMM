@@ -7,6 +7,8 @@ import requests
 import re
 import math
 import subprocess
+from PyQt6.QtWidgets import QMessageBox
+import sys
 
 from dataclasses import dataclass
 
@@ -34,6 +36,7 @@ class SteamCMD:
         self.batch_size: int = int(self.config.get('DOWNLOADER', 'batch_count', fallback=5))
         
         self._mod_downloader: 'ModDownloader' = mod_downloader
+        self.downloader_tab = None
 
         self._steamcmd_installed: bool = False
         self.fresh_install: bool = False
@@ -210,7 +213,7 @@ class SteamCMD:
         except Exception as e:
             print(f'Error getting page: {e}')
             if self._mod_downloader.ui_running:
-                self._mod_downloader.ui.downloader_tab.add_text_to_console(f'Error getting page: {e}', color='red')
+                self.add_text_to_console(f'Error getting page: {e}', color='red')
             return None
         
         # collection
@@ -229,7 +232,7 @@ class SteamCMD:
         else:
             print('No match')
             if self._mod_downloader.ui_running:
-                self._mod_downloader.ui.downloader_tab.add_text_to_console('No match', color='red')
+                self.add_text_to_console('No match', color='red')
             return None
         
         return tuple_list
@@ -291,8 +294,6 @@ class SteamCMD:
             # run steamcmd
             # self.run_steamcmd(args)
             self.run_steamcmd_threaded(args)
-
-        return True
     
     def run_steamcmd_threaded(self, args: list):
         """
@@ -311,6 +312,46 @@ class SteamCMD:
         t = Thread(target=self.run_steamcmd, args=(args,))
         t.start()
         return True
+    
+    def update_progress_bar(self, progress: int):
+        """
+        Update the progress bar
+
+        Parameters
+        ----------
+        progress : int
+            The progress to update the bar with
+        """
+        self._mod_downloader.ui.downloader_tab.update_progress_bar(progress)
+    
+    def error_message(self, message: str):
+        """
+        Show an error message
+
+        Parameters
+        ----------
+        message : str
+            The message to show
+        """
+        yeet = QMessageBox()
+        yeet.setText(message)
+        yeet.buttonClicked.connect(lambda: sys.exit())
+        yeet.exec()
+        
+    def add_text_to_console(self, text: str, newline: bool=True, color: str='white'):
+        """
+        Add text to the console
+
+        Parameters
+        ----------
+        text : str
+            The text to add
+        color : str
+            The color of the text
+        """
+        if not self.downloader_tab:
+            self.downloader_tab = self._mod_downloader.ui.downloader_tab
+        self.downloader_tab.add_text_to_console(text, newline=newline, color=color)
 
     def run_steamcmd(self, args: list):
         """
@@ -329,19 +370,55 @@ class SteamCMD:
         if self.steamcmd_installed:
             # os.system(' '.join(args))
 
-            proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            stdout, stderr = proc.communicate()
+            proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, errors='ignore')
+            # stdout, stderr = proc.communicate()
+            
+            while True:
+                out = proc.stdout.readline()
+                
+                if out == b'' and proc.poll() is not None:
+                    break
+                
+                if out:
+                    if m := re.search("Redirecting stderr to", out):
+                        print(m)
+                        if self._mod_downloader.ui_running:
+                            self.add_text_to_console(f'{out[: m.span()[0]]} \n', color='red')
+                            break
+                        
+                    if re.match("-- type 'quit' to exit --", out):
+                        continue
+                    
+                    return_code = proc.poll()
+                    print(f'return code: {return_code}')
+                    if return_code is not None:
+                        for out in proc.stdout.readlines():
+                            self.add_text_to_console(out.decode('utf-8'), color='green')
+                            print(out.decode('utf-8'))
+                            break
+                        
+            # self.downloader_tab.update_progress_bar(100)
+            self.downloader_tab.progress_bar.setVisible(False)
+            self.downloader_tab.spinner_button.setVisible(False)
+            self.downloader_tab.download_button.setEnabled(True)
+            self.downloader_tab.download_button.setVisible(True)
 
-            if stdout:
-                print(stdout.decode('utf-8'))
-                if self._mod_downloader.ui_running:
-                    self._mod_downloader.ui.downloader_tab.add_text_to_console(stdout.decode('utf-8'), color='green')
-            if stderr:
-                print(stderr.decode('utf-8'))
-                if self._mod_downloader.ui_running:
-                    self._mod_downloader.ui.downloader_tab.add_text_to_console(stderr.decode('utf-8'), color='red')
+            # if stdout:
+            #     print(stdout.decode('utf-8'))
+            #     line = stdout.decode('utf-8')
+                
+            #     if yeet := re.search("Redirecting stderr to", line):
+            #         # how can I stop the process or return an error or something here?
+            #         print(yeet)
+                
+            #     if self._mod_downloader.ui_running:
+            #         self._mod_downloader.ui.downloader_tab.add_text_to_console(stdout.decode('utf-8'), color='green')
+            # if stderr:
+            #     print(stderr.decode('utf-8'))
+            #     if self._mod_downloader.ui_running:
+            #         self._mod_downloader.ui.downloader_tab.add_text_to_console(stderr.decode('utf-8'), color='red')
 
-            return True
+            # return True
 
         else:
             raise SteamCMDNotInstalledException('SteamCMD is not installed')
