@@ -1,6 +1,10 @@
+from tabnanny import check
+from threading import Thread
+import time
 from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QWidget, QStyle, QStyleOptionButton
+# from PyQt6.QtWebEngineWidgets import QWebEngineView
 from typing import TYPE_CHECKING, Optional, Union
 from termcolor import COLORS
 from superqt import QCollapsible
@@ -43,26 +47,29 @@ class UiTab_Downloader(QtWidgets.QTabWidget):
         self.console_output_box = QtWidgets.QTextEdit()
         self.console_output_box.setReadOnly(True)
         self.layout_.addWidget(self.console_output_box, 1, 1)
-        
+
         # progress bar
         self.progress_bar = QtWidgets.QProgressBar()
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
         self.progress_bar.setVisible(False)
         self.layout_.addWidget(self.progress_bar, 2, 0, 1, 2)
-        
+
         # spinner icon
         self.spinner_button = QtWidgets.QPushButton()
-        self.spinner_button.setIcon(fi.icon(FA6S.spinner, color="green", animation=fi.spin(self.spinner_button)))
+        self.spinner_button.setIcon(
+            fi.icon(FA6S.spinner, color="green", animation=fi.spin(self.spinner_button))
+        )
         self.spinner_button.setIconSize(QtCore.QSize(16, 16))
         self.spinner_button.setFlat(True)
         self.spinner_button.setVisible(False)
-        self.layout_.addWidget(self.spinner_button, 1, 1, QtCore.Qt.AlignmentFlag.AlignHCenter)
+        self.layout_.addWidget(
+            self.spinner_button, 1, 1, QtCore.Qt.AlignmentFlag.AlignHCenter
+        )
 
         # download button
         self.download_button = QtWidgets.QPushButton("Download")
         self.download_button.clicked.connect(self._handle_download_button)
-        # TODO: Column stretch
         self.layout_.addWidget(
             self.download_button, 2, 0, 1, 2, QtCore.Qt.AlignmentFlag.AlignHCenter
         )
@@ -284,6 +291,42 @@ class Ui_StatusBar(QtWidgets.QStatusBar):
         self.game_selection = ""
         self.setupUi()
 
+        t = Thread(target=self.test_change_state)
+        t.start()
+
+    def test_change_state(self):
+        """Test changing the state of the status bar"""
+        try:
+            # default state is active
+            time.sleep(2)
+            # change state to normal
+            print('normal')
+            self.steamcmd_status_button.clearFocus()
+            self.refresh()
+            time.sleep(1)
+            # change state to selected
+            print('selected')
+            self.steamcmd_status_button.setFocus()
+            self.refresh()
+            time.sleep(1)
+            # change state to disabled
+            print('disabled')
+            self.steamcmd_status_button.setEnabled(False)
+            self.refresh()
+            time.sleep(1)
+            # change state to normal
+            print('normal')
+            self.steamcmd_status_button.setEnabled(True)
+            self.refresh()
+            time.sleep(1)
+            # change state to active
+            print('active')
+            self.steamcmd_status_button.setFocus()
+            self.refresh()
+            time.sleep(1)
+        except Exception as e:
+            print(e)
+
     @property
     def steamcmd_installed(self):
         return self._parent_window.steamcmd_installed
@@ -324,27 +367,39 @@ class Ui_StatusBar(QtWidgets.QStatusBar):
                 FA6S.check,
                 color="green",
                 states={
-                    "Active": {
-                        "glyph_key": FA6S.spinner,
-                        "color": "red",
-                        "scale_factor": 0.5,
-                        "animation": fi.spin(widget),
+                    "normal": {
+                        "glyph_key": FA6S.check,
+                        "color": "green",
+                        "scale_factor": 0.8,
                     },
-                    "Disabled": {
+                    "active": {
+                        "glyph_key": FA6S.spinner,
                         "color": "green",
                         "scale_factor": 0.8,
                         "animation": fi.spin(widget),
+                    },
+                    "selected": {
+                        "glyph_key": FA6S.check_double,
+                        "color": "cyan",
+                        "scale_factor": 0.8,
+                    },
+                    "disabled": {
+                        "glyph_key": FA6S.xmark,
+                        "color": "red",
+                        "scale_factor": 0.8,
                     },
                 },
             )
             if isinstance(widget, QtWidgets.QLabel):
                 widget.setPixmap(checkmark_icon.pixmap(16, 16))
-                checkmark_icon.Mode = "Active"
-                checkmark_icon.State = "Active"
+            if isinstance(widget, QtWidgets.QPushButton):
+                widget.setIcon(checkmark_icon)
         else:
             x_icon = fi.icon(FA6S.xmark, color="red")
             if isinstance(widget, QtWidgets.QLabel):
                 widget.setPixmap(x_icon.pixmap(16, 16))
+            if isinstance(widget, QtWidgets.QPushButton):
+                widget.setIcon(x_icon)
 
     def refresh(self):
         """Refresh the status bar"""
@@ -366,8 +421,36 @@ class Ui_StatusBar(QtWidgets.QStatusBar):
         self.addWidget(self.steamcmd_status_label)
         # steamcmd status checkmark icon
         self.steamcmd_status_icon = QtWidgets.QLabel(self)
+        # TODO> Testing buttons instead of labels for better icon support
+        # buttons actually work with the icon animations
+        # where as labels do not
+        self.steamcmd_status_button = QtWidgets.QPushButton()
+        # TODO: Fix the icon animations
+        # self.steamcmd_status_button.setIcon(
+        #     fi.icon(
+        #         FA6S.check,
+        #         color="green",
+        #         states={
+        #             "active": {
+        #                 "glyph_key": FA6S.spinner,
+        #                 "color": "red",
+        #                 "scale_factor": 0.5,
+        #                 "animation": fi.spin(self.steamcmd_status_button),
+        #             },
+        #             "disabled": {
+        #                 "color": "green",
+        #                 "scale_factor": 0.8,
+        #                 "animation": fi.pulse(self.steamcmd_status_button),
+        #             },
+        #         },
+        #     )
+        # )
+        self.steamcmd_status_button.setIconSize(QtCore.QSize(16, 16))
+        self.steamcmd_status_button.setFlat(True)
+        self.addWidget(self.steamcmd_status_button)
         if self.steamcmd_installed:
             self.update_status(self.steamcmd_status_icon, True)
+            self.update_status(self.steamcmd_status_button, True)
         else:
             self.update_status(self.steamcmd_status_icon, False)
         self.addWidget(self.steamcmd_status_icon)
@@ -483,8 +566,6 @@ class Ui_Downloader(QWidget):
         self.status_bar = Ui_StatusBar(self)
         self.layout_.addWidget(self.status_bar, 4, 0)
 
-        # TODO: Change the options button to be a dropdown menu
-        # anything cleaner than what it is now
         # options widget
         self.options_widget = Ui_CollapsibleOptions(self)
         # self.options_widget.setVisible(False)
@@ -524,6 +605,7 @@ class Ui_Downloader(QWidget):
                 self.downloader_tab.add_text_to_console(
                     "Please wait as steamcmd updates...", color="green"
                 )
+                self.downloader_tab.spinner_button.setVisible(True)
                 self.mod_downloader.steamcmd.update_steamcmd()
         else:
             self.close()
